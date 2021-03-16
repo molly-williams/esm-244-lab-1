@@ -1,0 +1,148 @@
+---
+title: "MW 244 Lab 1"
+author: "Molly Williams"
+date: "1/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Install libraries/packages
+```{r}
+
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(tmap)
+
+```
+
+2. Reading, exploring, wrangling
+a. Read in data
+```{r}
+wine <- read_csv("wine_data.csv")
+```
+
+b. Wrangling
+
+```{r}
+
+wine_new <- wine %>% 
+  select(country, province, winery, region_1, points, price) %>% # keep these columns in the new data frame; including a minus sign in front allows you to exclude; can also be used for ordering 
+  rename(state = province) %>% # changes the name from province to state; two equal signs looks for a match
+  filter(state == "California" | state == "Oregon" | state == "Washington") %>% 
+  mutate(ppd = points/price) %>%  #can be used to overwrite columns; but recommend to add new column
+  arrange(-ppd) #organizes by the highest points per dollar
+  
+```
+
+c. Use group_by() and summarize() to find summary stats by group
+```{r}
+
+wine_summary <- wine_new %>% 
+  group_by(state) %>% 
+  summarize(
+    mean_ppd = mean(ppd, na.rm = TRUE),
+    max_ppd = max(ppd, na.rm = TRUE)
+  )
+
+```
+
+
+d. A few gg-graphics
+```{r}
+
+wine_hists <- ggplot(wine_new, aes(x = ppd)) +
+  geom_histogram(aes(fill = state)) +
+  facet_wrap(~state, scales = "free")
+wine_hists # Can't see WA because by default, the scales are kept the same; adding in scales= free auto adjusts the y-axes
+
+
+
+```
+
+New graph: scatterplot graph of price vs. points, with color determined by state, adding a linear model trendline on top of it
+
+```{r}
+
+wine_points <- ggplot(wine_new, aes(x = price, y = points)) +
+  geom_point(aes(color = state), alpha = 0.5) + 
+  geom_smooth(color = "black", method = "lm", se = FALSE) +
+  scale_color_manual(values = c("royalblue","mediumorchid1","orange")) +
+  facet_wrap(~state) +
+  theme_light() #removes dark gray background
+
+
+#changing transparency of points to specific value (don't need aes()) to better see what's going on
+
+# can override color scheme manually using scale_color_manual()
+
+# using facet wrap to be able to see Washington's points
+
+# theme_light() removes dark gray background
+
+wine_points
+
+```
+
+
+3. California Counties (spatial data) using sf
+```{r}
+
+ca_counties <- st_read(dsn = ".", layer = "CA_Counties_TIGER2016")
+
+ca_land <- ca_counties %>% 
+  select(NAME, ALAND)
+
+# sf knows that you want to keep the geometry, so you don't need to specify (Geometry is sticky, can treat the data like a normal df)
+
+ca_pop_inc <- read_csv("ca_pop_inc.csv") %>% 
+  rename(NAME=COUNTY)
+  
+ca_df <- full_join(ca_land, ca_pop_inc) %>% 
+  select(NAME, MedFamilyIncome)
+
+
+```
+
+
+Use geom_sf to make a map in ggplot
+
+```{r}
+
+ca_income <- ggplot(ca_df) +
+  geom_sf(aes(fill=MedFamilyIncome))
+
+ca_income
+
+ca_df_transform <- st_transform(ca_df, crs = 4326) # change coordinate reference system
+
+
+# Creates an interactive map!
+leaflet(ca_df_transform) %>% 
+  addTiles() %>% 
+  addPolygons()
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
